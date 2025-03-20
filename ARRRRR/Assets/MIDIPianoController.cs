@@ -1,8 +1,8 @@
 using UnityEngine;
 using System.Collections.Generic;
-using MidiJack;
+// using MidiJack;
 
-public class MIDIPianoController2 : MonoBehaviour
+public class MIDIPianoController2 : MonoBehaviour, IMidiEventHandler
 {
     [Header("References")]
     public CasiotoneKeyLayout keyLayout;
@@ -18,58 +18,103 @@ public class MIDIPianoController2 : MonoBehaviour
     void Start()
     {
         // Register MIDI event callbacks
-        MidiMaster.noteOnDelegate += OnNoteOn;
-        MidiMaster.noteOffDelegate += OnNoteOff;
+        // MidiMaster.noteOnDelegate += OnNoteOn;
+        // MidiMaster.noteOffDelegate += OnNoteOff;
         
+        MidiManager.Instance.RegisterEventHandler(this);
         Debug.Log("MIDI listener started. Waiting for input from Casiotone CT-S300...");
     }
     
     void OnDestroy()
     {
         // Unregister MIDI event callbacks
-        MidiMaster.noteOnDelegate -= OnNoteOn;
-        MidiMaster.noteOffDelegate -= OnNoteOff;
+        // MidiMaster.noteOnDelegate -= OnNoteOn;
+        // MidiMaster.noteOffDelegate -= OnNoteOff;
     }
-    
-    void OnNoteOn(MidiChannel channel, int note, float velocity)
+
+    public void RawMidi(sbyte a, sbyte b, sbyte c)
     {
-         Debug.Log($"MIDI Note On: Channel {channel}, Note {note}, Velocity {velocity}");
-    
-        // Regular key highlighting for normal play mode
-        if (keyLayout != null)
-        {
-            keyLayout.HighlightKey(note, keyPressedColor);
-            activeNotes.Add(note);
-        }
+        // Debug.Log("RawMidi a " + a + " b " + b + " c " + c);
+        // text.text += "RawMidi a " + a + " b " + b + " c " + c + Environment.NewLine;
     }
-    
-    void OnNoteOff(MidiChannel channel, int note)
-    {
-        // Debug.Log($"MIDI Note Off: Channel {channel}, Note {note}");
-        
-        if (keyLayout != null && activeNotes.Contains(note))
+
+    public void NoteOn(int note, int velocity)
         {
-            // Determine if white or black key
-            int noteInOctave = note % 12;
-            bool isBlackKey = (noteInOctave == 1 || noteInOctave == 3 || 
-                              noteInOctave == 6 || noteInOctave == 8 || 
-                              noteInOctave == 10);
-            
-            // Get the key GameObject
-            GameObject keyObject = keyLayout.GetKeyObject(note);
-            if (keyObject != null)
+            Debug.Log($"Note {note}, Velocity {velocity}");
+    
+            // Regular key highlighting for normal play mode
+            if (keyLayout != null)
             {
-                MeshRenderer keyRenderer = keyObject.GetComponent<MeshRenderer>();
-                if (keyRenderer != null)
-                {
-                    // Restore original material
-                    keyRenderer.material = isBlackKey ? blackKeyMaterial : whiteKeyMaterial;
-                }
+                keyLayout.HighlightKey(note, keyPressedColor);
+                activeNotes.Add(note);
             }
-            
-            activeNotes.Remove(note);
         }
-    }
+    
+    // void OnNoteOn(MidiChannel channel, int note, float velocity)
+    // {
+    //      Debug.Log($"MIDI Note On: Channel {channel}, Note {note}, Velocity {velocity}");
+    
+    //     // Regular key highlighting for normal play mode
+    //     if (keyLayout != null)
+    //     {
+    //         keyLayout.HighlightKey(note, keyPressedColor);
+    //         activeNotes.Add(note);
+    //     }
+    // }
+    
+    public void NoteOff(int note)
+        {
+            if (keyLayout != null && activeNotes.Contains(note))
+            {
+                // Determine if white or black key
+                int noteInOctave = note % 12;
+                bool isBlackKey = (noteInOctave == 1 || noteInOctave == 3 || 
+                                noteInOctave == 6 || noteInOctave == 8 || 
+                                noteInOctave == 10);
+                
+                // Get the key GameObject
+                GameObject keyObject = keyLayout.GetKeyObject(note);
+                if (keyObject != null)
+                {
+                    MeshRenderer keyRenderer = keyObject.GetComponent<MeshRenderer>();
+                    if (keyRenderer != null)
+                    {
+                        // Restore original material
+                        keyRenderer.material = isBlackKey ? blackKeyMaterial : whiteKeyMaterial;
+                    }
+                }
+                
+                activeNotes.Remove(note);
+            }
+        }
+
+    // void OnNoteOff(MidiChannel channel, int note)
+    // {
+        // // Debug.Log($"MIDI Note Off: Channel {channel}, Note {note}");
+        
+        // if (keyLayout != null && activeNotes.Contains(note))
+        // {
+        //     // Determine if white or black key
+        //     int noteInOctave = note % 12;
+        //     bool isBlackKey = (noteInOctave == 1 || noteInOctave == 3 || 
+        //                       noteInOctave == 6 || noteInOctave == 8 || 
+        //                       noteInOctave == 10);
+            
+        //     // Get the key GameObject
+        //     GameObject keyObject = keyLayout.GetKeyObject(note);
+        //     if (keyObject != null)
+        //     {
+        //         MeshRenderer keyRenderer = keyObject.GetComponent<MeshRenderer>();
+        //         if (keyRenderer != null)
+        //         {
+        //             // Restore original material
+        //             keyRenderer.material = isBlackKey ? blackKeyMaterial : whiteKeyMaterial;
+        //         }
+        //     }
+            
+        //     activeNotes.Remove(note);
+        // }
+    // }
     
     // For testing in the editor without a MIDI device
     void Update()
@@ -91,11 +136,21 @@ public class MIDIPianoController2 : MonoBehaviour
     // Helper methods for testing
     void SimulateNoteOn(int note)
     {
-        OnNoteOn(MidiChannel.All, note, 1.0f);
+        // OnNoteOn(MidiChannel.All, note, 1.0f);
     }
     
     void SimulateNoteOff(int note)
     {
-        OnNoteOff(MidiChannel.All, note);
+        // OnNoteOff(MidiChannel.All, note);÷
     }
+
+    public void DeviceAttached(string deviceName)
+        {
+            Debug.Log("Device Attached " + deviceName);
+        }
+
+        public void DeviceDetached(string deviceName)
+        {
+            Debug.Log("Device Detached " + deviceName);
+        }
 }

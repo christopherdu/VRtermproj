@@ -4,14 +4,14 @@ using System.Collections.Generic;
 public class CasiotoneKeyLayout : MonoBehaviour
 {
     [Header("Keyboard Settings")]
-    public float keyboardStartOffset = 0.05f;  // Offset from left edge
-    public float keyboardWidth = 0.85f;        // Active keyboard area width
+    public float keyboardStartOffset = 0.015f;  // Offset from edge
+    public float keyboardWidth = 0.85f;        // Total width of piano
     
     [Header("Key Dimensions")]
-    public float whiteKeyWidth = 0.0225f;
-    public float whiteKeyLength = 0.14f;
-    public float blackKeyWidth = 0.012f;
-    public float blackKeyLength = 0.09f;
+    public float whiteKeyWidth = 0.03f;      // 3cm per your measurements
+    public float whiteKeyLength = 0.13f;     // 13cm per your measurements
+    public float blackKeyWidth = 0.015f;     // Half of white key width
+    public float blackKeyLength = 0.085f;    // About 2/3 of white key length
     
     [Header("References")]
     public GameObject whiteKeyPrefab;
@@ -34,27 +34,38 @@ public class CasiotoneKeyLayout : MonoBehaviour
         {
             Destroy(child.gameObject);
         }
+        keyObjects.Clear();
         
-        // Starting MIDI note for 61-key keyboard (C2 = MIDI note 36)
-        int startNote = 36;
-        int endNote = 96; // 61 keys: 36 to 96
+        // 61-key keyboard (C2 = MIDI note 36 to C7 = MIDI note 96)
+        int lowNote = 36;  // C2
+        int highNote = 96; // C7
         
-        // Position of leftmost key
-        float startX = -keyboardWidth/2 + keyboardStartOffset;
-        float keyboardSurfaceHeight = 0.01f;  // Slight offset above piano
+        // Calculate total keyboard width
+        int totalWhiteKeys = 0;
+        for (int note = lowNote; note <= highNote; note++)
+        {
+            int noteInOctave = note % 12;
+            if (noteInOctave == 0 || noteInOctave == 2 || noteInOctave == 4 || 
+                noteInOctave == 5 || noteInOctave == 7 || noteInOctave == 9 || 
+                noteInOctave == 11)
+            {
+                totalWhiteKeys++;
+            }
+        }
         
-        // Track white key positions
-        float[] whiteKeyPositions = new float[36];  // 36 white keys in 61-key keyboard
-        int whiteKeyCount = 0;
+        Debug.Log($"Total white keys: {totalWhiteKeys}");
         
-        // Create white keys first - REVERSED ORDER
+        // Position of rightmost key (reversed layout)
+        float startX = keyboardWidth/2 - keyboardStartOffset;
+        float keyboardSurfaceHeight = 0.001f;  // Slight offset above piano
         float currentX = startX;
         
-        // First, find all white keys and their positions
-        for (int i = 0; i < 61; i++)
+        // Create white keys first from right to left (low to high notes, reversed)
+        Dictionary<int, float> whiteKeyPositions = new Dictionary<int, float>();
+        
+        for (int note = lowNote; note <= highNote; note++)
         {
-            int midiNote = endNote - i; // Start from highest note (reversed)
-            int noteInOctave = midiNote % 12;
+            int noteInOctave = note % 12;
             
             // Check if it's a white key
             if (noteInOctave == 0 || noteInOctave == 2 || noteInOctave == 4 || 
@@ -63,114 +74,85 @@ public class CasiotoneKeyLayout : MonoBehaviour
             {
                 // Create white key
                 GameObject keyObj = Instantiate(whiteKeyPrefab, keysParent);
-                keyObj.name = $"WhiteKey_{midiNote}";
+                keyObj.name = $"WhiteKey_{note}";
                 
                 // Position key
                 keyObj.transform.localPosition = new Vector3(currentX, keyboardSurfaceHeight, 0);
+                keyObj.transform.localScale = new Vector3(whiteKeyWidth * 0.95f, 0.01f, whiteKeyLength);
                 
                 // Store position for black keys
-                whiteKeyPositions[whiteKeyCount] = currentX;
-                whiteKeyCount++;
+                whiteKeyPositions[note] = currentX;
                 
                 // Store reference for MIDI highlighting
-                keyObjects[midiNote] = keyObj;
+                keyObjects[note] = keyObj;
                 
-                // Move to next white key
-                currentX += whiteKeyWidth;
+                // Move to next white key (going leftward)
+                currentX -= whiteKeyWidth;
             }
         }
         
-        // Now add black keys - REVERSED ORDER
-        for (int i = 0; i < 61; i++)
+        // Now create black keys
+        for (int note = lowNote; note <= highNote; note++)
         {
-            int midiNote = endNote - i; // Start from highest note (reversed)
-            int noteInOctave = midiNote % 12;
+            int noteInOctave = note % 12;
             
             // Check if it's a black key
             if (noteInOctave == 1 || noteInOctave == 3 || noteInOctave == 6 || 
                 noteInOctave == 8 || noteInOctave == 10)
             {
-                // Calculate position - this is more complex since we've reversed the order
-                // We need to find the neighboring white keys
-                int reversedIndex = 60 - i; // Index in the reversed list
-                int octave = (midiNote - startNote) / 12;
-                float xPos = 0;
+                // Get positions of adjacent white keys
+                int leftWhiteKey = note - 1;  // Note: in reversed layout, this is physically on the right
+                int rightWhiteKey = 0;        // Note: in reversed layout, this is physically on the left
                 
-                // Find the correct position based on the adjacent white keys
-                // This part needs careful adjustment since our white keys are now reversed
-                if (noteInOctave == 1) // C# - between C and D
+                // Find the next white key to the right
+                for (int n = note + 1; n <= highNote; n++)
                 {
-                    int cIndex = FindWhiteKeyIndex(midiNote - 1, endNote);
-                    if (cIndex >= 0 && cIndex < whiteKeyCount)
-                        xPos = whiteKeyPositions[cIndex] + whiteKeyWidth * 0.7f;
-                }
-                else if (noteInOctave == 3) // D# - between D and E
-                {
-                    int dIndex = FindWhiteKeyIndex(midiNote - 1, endNote);
-                    if (dIndex >= 0 && dIndex < whiteKeyCount)
-                        xPos = whiteKeyPositions[dIndex] + whiteKeyWidth * 0.7f;
-                }
-                else if (noteInOctave == 6) // F# - between F and G
-                {
-                    int fIndex = FindWhiteKeyIndex(midiNote - 1, endNote);
-                    if (fIndex >= 0 && fIndex < whiteKeyCount)
-                        xPos = whiteKeyPositions[fIndex] + whiteKeyWidth * 0.7f;
-                }
-                else if (noteInOctave == 8) // G# - between G and A
-                {
-                    int gIndex = FindWhiteKeyIndex(midiNote - 1, endNote);
-                    if (gIndex >= 0 && gIndex < whiteKeyCount)
-                        xPos = whiteKeyPositions[gIndex] + whiteKeyWidth * 0.7f;
-                }
-                else if (noteInOctave == 10) // A# - between A and B
-                {
-                    int aIndex = FindWhiteKeyIndex(midiNote - 1, endNote);
-                    if (aIndex >= 0 && aIndex < whiteKeyCount)
-                        xPos = whiteKeyPositions[aIndex] + whiteKeyWidth * 0.7f;
+                    int nInOctave = n % 12;
+                    if (nInOctave == 0 || nInOctave == 2 || nInOctave == 4 || 
+                        nInOctave == 5 || nInOctave == 7 || nInOctave == 9 || 
+                        nInOctave == 11)
+                    {
+                        rightWhiteKey = n;
+                        break;
+                    }
                 }
                 
-                // Create black key if we have a valid position
-                if (xPos != 0)
+                // Only create if we have both adjacent white keys
+                if (whiteKeyPositions.ContainsKey(leftWhiteKey) && whiteKeyPositions.ContainsKey(rightWhiteKey))
                 {
-                    GameObject keyObj = Instantiate(blackKeyPrefab, keysParent);
-                    keyObj.name = $"BlackKey_{midiNote}";
+                    float rightPos = whiteKeyPositions[leftWhiteKey];    // In reversed layout, the "left" white key is physically on the right
+                    float leftPos = whiteKeyPositions[rightWhiteKey];    // In reversed layout, the "right" white key is physically on the left
                     
-                    // Position key (black keys are further back)
-                    keyObj.transform.localPosition = new Vector3(xPos, keyboardSurfaceHeight, -whiteKeyLength/2 + blackKeyLength/2);
+                    // Position black key between white keys (slightly offset depending on which black key)
+                    float offset = 0.4f; // Default offset from right white key (in reversed layout)
+                    
+                    if (noteInOctave == 1) offset = 0.3f;      // C#
+                    else if (noteInOctave == 3) offset = 0.35f; // D#
+                    else if (noteInOctave == 6) offset = 0.4f;  // F#
+                    else if (noteInOctave == 8) offset = 0.35f; // G#
+                    else if (noteInOctave == 10) offset = 0.3f; // A#
+                    
+                    float whiteKeySpacing = rightPos - leftPos;
+                    float xPos = rightPos - (whiteKeySpacing * offset);
+                    
+                    // Create black key
+                    GameObject keyObj = Instantiate(blackKeyPrefab, keysParent);
+                    keyObj.name = $"BlackKey_{note}";
+                    
+                    // Position key
+                    float zPos = -whiteKeyLength * 0.35f; // Position from the front edge
+                    keyObj.transform.localPosition = new Vector3(xPos, keyboardSurfaceHeight + 0.001f, zPos);
+                    keyObj.transform.localScale = new Vector3(blackKeyWidth, 0.015f, blackKeyLength);
                     
                     // Store reference
-                    keyObjects[midiNote] = keyObj;
+                    keyObjects[note] = keyObj;
                 }
             }
         }
         
-        Debug.Log("Created keyboard layout with 61 keys in reversed order");
+        Debug.Log("Created keyboard layout with 61 keys in reversed orientation (low notes on right)");
     }
     
-    // Helper method to find the index of a white key in our array
-    private int FindWhiteKeyIndex(int midiNote, int highestNote)
-    {
-        int count = 0;
-        
-        // Count how many white keys exist from the highest note down to this note
-        for (int note = highestNote; note >= midiNote; note--)
-        {
-            int noteInOctave = note % 12;
-            
-            if (noteInOctave == 0 || noteInOctave == 2 || noteInOctave == 4 || 
-                noteInOctave == 5 || noteInOctave == 7 || noteInOctave == 9 || 
-                noteInOctave == 11)
-            {
-                if (note == midiNote)
-                    return count;
-                    
-                count++;
-            }
-        }
-        
-        return -1; // Not found
-    }
-
     // Method to get a key GameObject by MIDI note
     public GameObject GetKeyObject(int midiNote)
     {
